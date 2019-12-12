@@ -10,6 +10,7 @@
 	<connection value="common/targetdb/connections/TIXDS110_Connection.xml"/>
 	<rts value=""/>
 	<createSlaveProjects value=""/>
+	<ignoreDefaultDeviceSettings value="true"/>
 	<ignoreDefaultCCSSettings value="true"/>
 	<templateProperties value="id=hello_CC1350_LAUNCHXL_tirtos_ccs.projectspec.hello_CC1350_LAUNCHXL_tirtos_ccs,type=rtsc,xdcToolsVersion=3_51_03_28_core,target=ti.targets.arm.elf.M3,platform=ti.platforms.simplelink:CC1350F128,buildProfile=release,isHybrid=true,configuroOptions= --compileOptions &quot;${COMPILER_FLAGS} &quot;"/>
 	<origin value="C:\ti\simplelink_cc13x0_sdk_3_20_00_23\examples\rtos\CC1350_LAUNCHXL\sysbios\hello\tirtos\ccs\hello_CC1350_LAUNCHXL_tirtos_ccs.projectspec"/>
