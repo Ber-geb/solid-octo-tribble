@@ -144,10 +144,11 @@ void InitConsole(void);
 
 volatile int16_t i16ToggleCount;
 uint32_t ui32ADC0Value[4];
+uint32_t ADCAvg;
 volatile bool buttonPressed;
 volatile uint32_t ui32Load;
 volatile uint32_t ui32PWMClock;
-volatile uint32_t ui8Adjust = 83;
+//volatile uint32_t ui8Adjust = 83;
 
 int main(void)
 {
@@ -211,9 +212,11 @@ void hardware_init(void)
 
     // ADD Tiva-C GPIO setup - enables port, sets pins 1-3 (RGB) pins for output
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
 
     GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3);
     GPIOPinTypeGPIOInput(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0);
+    GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_2);
 
     GPIOPadConfigSet(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0 , GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
 
@@ -223,7 +226,7 @@ void hardware_init(void)
     PWMGenConfigure(PWM1_BASE, PWM_GEN_0, PWM_GEN_MODE_DOWN);
     PWMGenPeriodSet(PWM1_BASE, PWM_GEN_0, ui32Load);
 
-    PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, (ui32ADC0Value[0]/200 * ui32Load)/1000);
+    //PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, (ui32ADC0Value[0]/200 * ui32Load)/1000);
     PWMOutputState(PWM1_BASE, PWM_OUT_0_BIT, true);
     PWMGenEnable(PWM1_BASE, PWM_GEN_0);
 
@@ -235,10 +238,10 @@ void hardware_init(void)
     ADCHardwareOversampleConfigure(ADC0_BASE, 64);
     ADCSequenceConfigure(ADC0_BASE, 1, ADC_TRIGGER_PROCESSOR, 0);
 
-    ADCSequenceStepConfigure(ADC0_BASE, 1, 0, ADC_CTL_TS);
-    ADCSequenceStepConfigure(ADC0_BASE, 1, 1, ADC_CTL_TS);
-    ADCSequenceStepConfigure(ADC0_BASE, 1, 2, ADC_CTL_TS);
-    ADCSequenceStepConfigure(ADC0_BASE, 1, 3, ADC_CTL_TS | ADC_CTL_IE | ADC_CTL_END);
+    ADCSequenceStepConfigure(ADC0_BASE, 1, 0, ADC_CTL_CH1);
+    ADCSequenceStepConfigure(ADC0_BASE, 1, 1, ADC_CTL_CH1);
+    ADCSequenceStepConfigure(ADC0_BASE, 1, 2, ADC_CTL_CH1);
+    ADCSequenceStepConfigure(ADC0_BASE, 1, 3, ADC_CTL_CH1 | ADC_CTL_IE | ADC_CTL_END);
 
     ADCSequenceEnable(ADC0_BASE, 1);
 
@@ -268,6 +271,7 @@ void ADCfun(void){
         while (!ADCIntStatus(ADC0_BASE, 1, false)){}
 
         ADCSequenceDataGet(ADC0_BASE, 1, ui32ADC0Value);
+        ADCAvg = (ui32ADC0Value[0] + ui32ADC0Value[1] + ui32ADC0Value[2] + ui32ADC0Value[3] + 2)/4;
         //ui32ADC0Value holds the ADC value...choose what to do with it...
         Semaphore_pend (ADCSem, BIOS_WAIT_FOREVER);
         //Semaphore_reset(ADCSem, 0);
@@ -282,7 +286,7 @@ void SRfun(void){
         if(GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4|GPIO_PIN_0)==0x00)
         {
             buttonPressed = true;
-            PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, (ui32ADC0Value[0]));
+            PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, ADCAvg);
         }
         //Semaphore_reset(SRSem, 0);
         //Semaphore_pend (SRSem, BIOS_WAIT_FOREVER);
@@ -292,14 +296,9 @@ void SRfun(void){
 }
 
 void UARTfun(void){
-
-
-
+// display for UART
     while(1){
-        UARTprintf("ADC Value[0]: %d\n", ui32ADC0Value[0]);
-        UARTprintf("ADC Value[1]: %d\n", ui32ADC0Value[1]);
-        UARTprintf("ADC Value[2]: %d\n", ui32ADC0Value[2]);
-        UARTprintf("ADC Value[3]: %d\n", ui32ADC0Value[3]);
+        UARTprintf("ADC Value[0]: %d\n", ADCAvg);
         Semaphore_pend (UARTSem, BIOS_WAIT_FOREVER);
         //Semaphore_reset(UARTSem, 0);
         //Semaphore_pend (SRSem, BIOS_WAIT_FOREVER);
@@ -311,6 +310,17 @@ void TIMER2INT(void){
     i16ToggleCount = i16ToggleCount + 1; //increment every time HWI occurs
     //    System_printf("Timer 2 interrupt occurred\n");
     //    System_flush();
+
+    if (buttonPressed){
+        if(GPIOPinRead(GPIO_PORTD_BASE, GPIO_PIN_0))
+        {
+            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3, 4);
+        }
+        else
+        {
+            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, 0);
+        }
+    }
 
     if (i16ToggleCount == 10){
         //count = Semaphore_getCount(ADCSem);
@@ -341,17 +351,7 @@ void TIMER_ISR(void){
             GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, 4);
         }
     }
-    else {
 
-        if(GPIOPinRead(GPIO_PORTD_BASE, GPIO_PIN_0))
-        {
-            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3, 0);
-        }
-        else
-        {
-            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, 4);
-        }
-    }
 }
 
 void reverse(char str[], int len){
